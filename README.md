@@ -1,1 +1,1 @@
-# muscle_ageing_atlas
+# Code to reproduce Skeletal muscel ageing manuscript
