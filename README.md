@@ -1,1 +1,2 @@
-# Code to reproduce Skeletal muscel ageing manuscript
+Code to reproduce "Human skeletal muscle ageing atlas"
+
