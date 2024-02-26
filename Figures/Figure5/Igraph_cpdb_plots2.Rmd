@@ -1,0 +1,168 @@
+---
+title: "Igraph_cpdb_plots"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#devtools::install_github("sqjin/CellChat")
+#library("CellChat")
+
+#install.packages('ggraph')
+library(ggraph)
+library(tidygraph)
+library(graphlayouts)
+library(igraph)
+library(ggrepel)
+
+```
+
+
+```{r}
+
+graph_ccl2 = tbl_graph(nodes=read.table("/nfs/team205/vk8/processed_data/muscle/data_v3/cpdb_graphs/ccl2_v2/nodes.csv", sep = ",", header = TRUE), edges=read.table("/nfs/team205/vk8/processed_data/muscle/data_v3/cpdb_graphs/ccl2_v2/edges.csv", sep = ",", header = TRUE), node_key='node_id', directed=F)
+
+library(data.table)
+dt = fread("/nfs/team205/vk8/processed_data/muscle/data_v3/cpdb_graphs/ccl2_v2/edges.csv")
+#install.packages('Rcpp')
+
+tail(dt, n = 30)
+library(scales)
+ccl2_plt = ggraph(graph_ccl2, layout='sugiyama', layers=read.table("/nfs/team205/vk8/processed_data/muscle/data_v3/cpdb_graphs/ccl2_v2/nodes.csv", sep = ",", header = TRUE)$layer) + 
+    geom_edge_link(aes(color = regulation, width = mean, filter=type==''), start_cap = circle(2, 'mm'), end_cap = circle(2, 'mm'))+
+    geom_edge_link(aes(filter=type!=''), linetype='dotted', width=0.7, start_cap = circle(2, 'mm'), end_cap = circle(2, 'mm')) +     
+    geom_node_point(aes(filter=(type2=='celltype')), shape=21, size=2.5, fill='gray99', stroke=0) +
+    geom_node_point(aes(color=group, filter=(type2=='celltype')), shape=21, size=2.5, stroke=1.5) + 
+    geom_node_point(aes(filter=(type2=='gene')), fill='#DDDDDD', shape=22, size=3, stroke=0.5, show.legend=F) +     
+    geom_node_text(aes(label=label, filter=layer==1), color='black', repel=F, size=3, nudge_x=0, nudge_y=0.1, hjust=0) + 
+    geom_node_text(aes(label=label, filter=layer==4), color='black', repel=F, size=3, nudge_x=0, nudge_y=-0.1, hjust=1) +     
+   geom_node_text(aes(label=label, filter=(type2=='gene')), color='black', repel=F, size=3, nudge_x=.55) + 
+  #  geom_node_text(aes(label=label, filter=(type2=='gene')), color='black', repel=F, size=4, nudge_x=1) +
+    scale_edge_width(range = c(0.1, 1.0))+
+    scale_color_manual(values=list(MuSC='#ADD9F4', Myofiber='#476C9B', FB ='#307351', Adipocyte = '#FFBF46', Schwann = '#7C7F65', Vessel = '#F0B7B3', SMC = '#AE76A6', Immune = '#F26157')) +
+  #  scale_fill_manual(values=colors) + 
+  #  labs(color='Tissue', fill='Cell type') +
+    coord_flip() +
+    guides(color = guide_legend(title.position = "top"), fill = guide_legend(title.position = "top", ncol=4)) +
+    scale_y_continuous(expand = c(.45, .45)) +
+  #  scale_linetype_discrete(name='DEG', labels=c('A', 'B')) +
+    scale_edge_color_manual(values=c('gray50', muted('red')), name='Regulation') +
+    theme_graph(fg_text_colour = 'white', base_size = 12, base_family = 'Helvetica') + 
+    theme(
+        legend.position="bottom",
+        legend.box='vertical',
+        legend.title=element_text(size=12, hjust=0.5), 
+        legend.text=element_text(size=12)
+    )
+    
+ggsave(filename = "~/muscle_ageing/results/Figures/Graph_CCL2_all_int_v2.pdf", ccl2_plt, width = 5.5, height = 6, dpi = 300)
+
+
+```
+
+
+```{r}
+graph_ccl3 = tbl_graph(nodes=read.table("/nfs/team205/vk8/processed_data/muscle/data_v3/cpdb_graphs/ccl3_v2/nodes.csv", sep = ",", header = TRUE), edges=read.table("/nfs/team205/vk8/processed_data/muscle/data_v3/cpdb_graphs/ccl3_v2/edges.csv", sep = ",", header = TRUE), node_key='node_id', directed=F)
+
+ccl3_plt = ggraph(graph_ccl3, layout='sugiyama', layers=read.table("/nfs/team205/vk8/processed_data/muscle/data_v3/cpdb_graphs/ccl3_v2/nodes.csv", sep = ",", header = TRUE)$layer) + 
+    geom_edge_link(aes(color = regulation, width = mean, filter=type==''), start_cap = circle(2, 'mm'), end_cap = circle(2, 'mm'))+
+    geom_edge_link(aes(filter=type!=''), linetype='dotted', width=0.7, start_cap = circle(2, 'mm'), end_cap = circle(2, 'mm')) +     
+    geom_node_point(aes(filter=(type2=='celltype')), shape=21, size=2.5, fill='gray99', stroke=0) +
+    geom_node_point(aes(color=group, filter=(type2=='celltype')), shape=21, size=2.5, stroke=1.5) + 
+    geom_node_point(aes(filter=(type2=='gene')), fill='#DDDDDD', shape=22, size=3, stroke=0.5, show.legend=F) +     
+    geom_node_text(aes(label=label, filter=layer==1), color='black', repel=F, size=3, nudge_x=0, nudge_y=0.1, hjust=0) + 
+    geom_node_text(aes(label=label, filter=layer==4), color='black', repel=F, size=3, nudge_x=0, nudge_y=-0.1, hjust=1) +     
+   geom_node_text(aes(label=label, filter=(type2=='gene')), color='black', repel=F, size=3, nudge_x=.55) + 
+  #  geom_node_text(aes(label=label, filter=(type2=='gene')), color='black', repel=F, size=4, nudge_x=1) +
+    scale_edge_width(range = c(0.1, 1.0))+
+    scale_color_manual(values=list(MuSC='#ADD9F4', Myofiber='#476C9B', FB ='#307351', Adipocyte = '#FFBF46', Schwann = '#7C7F65', Vessel = '#F0B7B3', SMC = '#AE76A6', Immune = '#F26157')) +
+  #  scale_fill_manual(values=colors) + 
+  #  labs(color='Tissue', fill='Cell type') +
+    coord_flip() +
+    guides(color = guide_legend(title.position = "top"), fill = guide_legend(title.position = "top", ncol=4)) +
+    scale_y_continuous(expand = c(.45, .45)) +
+  #  scale_linetype_discrete(name='DEG', labels=c('A', 'B')) +
+    scale_edge_color_manual(values=c(muted('blue'), 'gray50', muted('red')), name='Regulation') +
+    theme_graph(fg_text_colour = 'white', base_size = 12, base_family = 'Helvetica') + 
+    theme(
+        legend.position="bottom",
+        legend.box='vertical',
+        legend.title=element_text(size=12, hjust=0.5), 
+        legend.text=element_text(size=12)
+    )
+    
+ggsave(filename = "~/muscle_ageing/results/Figures/Graph_CCL3_all_int.pdf", ccl3_plt, width = 5.5, height = 6, dpi = 300)
+
+
+```
+
+```{r}
+graph_ccl4 = tbl_graph(nodes=read.table("/nfs/team205/vk8/processed_data/muscle/data_v3/cpdb_graphs/ccl4_v2/nodes.csv", sep = ",", header = TRUE), edges=read.table("/nfs/team205/vk8/processed_data/muscle/data_v3/cpdb_graphs/ccl4_v2/edges.csv", sep = ",", header = TRUE), node_key='node_id', directed=F)
+
+ccl4_plt = ggraph(graph_ccl4, layout='sugiyama', layers=read.table("/nfs/team205/vk8/processed_data/muscle/data_v3/cpdb_graphs/ccl4_v2/nodes.csv", sep = ",", header = TRUE)$layer) + 
+    geom_edge_link(aes(color = regulation, width = mean, filter=type==''), start_cap = circle(2, 'mm'), end_cap = circle(2, 'mm'))+
+    geom_edge_link(aes(filter=type!=''), linetype='dotted', width=0.7, start_cap = circle(2, 'mm'), end_cap = circle(2, 'mm')) +     
+    geom_node_point(aes(filter=(type2=='celltype')), shape=21, size=2.5, fill='gray99', stroke=0) +
+    geom_node_point(aes(color=group, filter=(type2=='celltype')), shape=21, size=2.5, stroke=1.5) + 
+    geom_node_point(aes(filter=(type2=='gene')), fill='#DDDDDD', shape=22, size=3, stroke=0.5, show.legend=F) +     
+    geom_node_text(aes(label=label, filter=layer==1), color='black', repel=F, size=3, nudge_x=0, nudge_y=0.1, hjust=0) + 
+    geom_node_text(aes(label=label, filter=layer==4), color='black', repel=F, size=3, nudge_x=0, nudge_y=-0.1, hjust=1) +     
+   geom_node_text(aes(label=label, filter=(type2=='gene')), color='black', repel=F, size=3, nudge_x=.55) + 
+  #  geom_node_text(aes(label=label, filter=(type2=='gene')), color='black', repel=F, size=4, nudge_x=1) +
+    scale_edge_width(range = c(0.1, 1.0))+
+    scale_color_manual(values=list(MuSC='#ADD9F4', Myofiber='#476C9B', FB ='#307351', Adipocyte = '#FFBF46', Schwann = '#7C7F65', Vessel = '#F0B7B3', SMC = '#AE76A6', Immune = '#F26157')) +
+  #  scale_fill_manual(values=colors) + 
+  #  labs(color='Tissue', fill='Cell type') +
+    coord_flip() +
+    guides(color = guide_legend(title.position = "top"), fill = guide_legend(title.position = "top", ncol=4)) +
+    scale_y_continuous(expand = c(.45, .45)) +
+  #  scale_linetype_discrete(name='DEG', labels=c('A', 'B')) +
+    scale_edge_color_manual(values=c(muted('blue'), 'gray50', muted('red')), name='Regulation') +
+    theme_graph(fg_text_colour = 'white', base_size = 12, base_family = 'Helvetica') + 
+    theme(
+        legend.position="bottom",
+        legend.box='vertical',
+        legend.title=element_text(size=12, hjust=0.5), 
+        legend.text=element_text(size=12)
+    )
+    
+ggsave(filename = "~/muscle_ageing/results/Figures/Graph_CCL4_all_int.pdf", ccl4_plt, width = 5.5, height = 6, dpi = 300)
+
+```
+
+```{r}
+graph_cxcl8= tbl_graph(nodes=read.table("/nfs/team205/vk8/processed_data/muscle/data_v3/cpdb_graphs/cxcl8_v2/nodes.csv", sep = ",", header = TRUE), edges=read.table("/nfs/team205/vk8/processed_data/muscle/data_v3/cpdb_graphs/cxcl8_v2/edges.csv", sep = ",", header = TRUE), node_key='node_id', directed=F)
+
+cxcl8_plt = ggraph(graph_cxcl8, layout='sugiyama', layers=read.table("/nfs/team205/vk8/processed_data/muscle/data_v3/cpdb_graphs/cxcl8_v2/nodes.csv", sep = ",", header = TRUE)$layer) + 
+    geom_edge_link(aes(color = regulation, width = mean, filter=type==''), start_cap = circle(2, 'mm'), end_cap = circle(2, 'mm'))+
+    geom_edge_link(aes(filter=type!=''), linetype='dotted', width=0.7, start_cap = circle(2, 'mm'), end_cap = circle(2, 'mm')) +     
+    geom_node_point(aes(filter=(type2=='celltype')), shape=21, size=2.5, fill='gray99', stroke=0) +
+    geom_node_point(aes(color=group, filter=(type2=='celltype')), shape=21, size=2.5, stroke=1.5) + 
+    geom_node_point(aes(filter=(type2=='gene')), fill='#DDDDDD', shape=22, size=3, stroke=0.5, show.legend=F) +     
+    geom_node_text(aes(label=label, filter=layer==1), color='black', repel=F, size=3, nudge_x=0, nudge_y=0.1, hjust=0) + 
+    geom_node_text(aes(label=label, filter=layer==4), color='black', repel=F, size=3, nudge_x=0, nudge_y=-0.1, hjust=1) +     
+   geom_node_text(aes(label=label, filter=(type2=='gene')), color='black', repel=F, size=3, nudge_x=.55) + 
+  #  geom_node_text(aes(label=label, filter=(type2=='gene')), color='black', repel=F, size=4, nudge_x=1) +
+    scale_edge_width(range = c(0.1, 1.0))+
+    scale_color_manual(values=list(MuSC='#ADD9F4', Myofiber='#476C9B', FB ='#307351', Adipocyte = '#FFBF46', Schwann = '#7C7F65', Vessel = '#F0B7B3', SMC = '#AE76A6', Immune = '#F26157', Mesothelium = "gray35")) +
+  #  scale_fill_manual(values=colors) + 
+  #  labs(color='Tissue', fill='Cell type') +
+    coord_flip() +
+    guides(color = guide_legend(title.position = "top"), fill = guide_legend(title.position = "top", ncol=4)) +
+    scale_y_continuous(expand = c(.45, .45)) +
+  #  scale_linetype_discrete(name='DEG', labels=c('A', 'B')) +
+    scale_edge_color_manual(values=c(muted('blue'), 'gray50', muted('red')), name='Regulation') +
+    theme_graph(fg_text_colour = 'white', base_size = 12, base_family = 'Helvetica') + 
+    theme(
+        legend.position="bottom",
+        legend.box='vertical',
+        legend.title=element_text(size=12, hjust=0.5), 
+        legend.text=element_text(size=12)
+    )
+
+
+ggsave(filename = "~/muscle_ageing/results/Figures/Graph_CXCL8_all_int.pdf", cxcl8_plt, width = 5.5, height = 6, dpi = 300)
+```

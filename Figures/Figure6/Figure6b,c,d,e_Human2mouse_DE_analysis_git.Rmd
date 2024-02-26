@@ -1,0 +1,413 @@
+---
+title: "Figure6: Human and mouse comparison"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages("tidyverse")
+library(tidyverse)
+library(readxl)
+library(data.table)
+library (ggplot2)
+#install.packages("ggpubr")
+library(ggpubr)
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(biomaRt)
+```
+
+##1. Load DE genes for human and mouse cells
+```{r}
+De_human = fread("/mnt/muscle_ageing/results/DE_regression_results/LMM_model/de_celltype_Age_interaction_all_human.txt")
+De_human = De_human[,2:ncol(De_human)]
+De_human[,species:="human"]
+De_mouse = fread("/mnt/muscle_ageing/results/DE_regression_results/LMM_model/de_celltype_Age_interaction_all_mouse.txt")
+De_mouse = De_mouse [,2:ncol(De_mouse)]
+De_mouse[,species:="mouse"]
+
+DE_genes0 = fread("/mnt/muscle_ageing/results/DE_regression_results/DE_results_skm_human2mouse_v2_two-sided_p_2021-10-19.csv")
+DE_genes0 = DE_genes0[,2:ncol(DE_genes0)]
+DE_genes0[cell_type == "human-MF-IIfg", cell_type:= "human-MF_IIfg"]
+DE_genes0[cell_type == "human-MF-Ifg", cell_type:= "human-MF_Ifg"]
+DE_genes0[cell_type == "mouse-MF-IIfg", cell_type:= "mouse-MF_IIfg"]
+DE_genes0[, c("species", "celltype"):= tstrsplit(cell_type, "-", fixed = TRUE)]
+
+
+DE_genes = rbind(De_human, De_mouse)
+colnames(DE_genes)[2] = "SYMBOL"
+DE_genes[, log2fc:=beta_old-beta_young]
+DE_genes[, cell_type_common:=celltype]
+DE_genes[, sign:=ltsr>0.9]
+
+DE_genes = merge(DE_genes, DE_genes0[, c("ENSEMBL", "SYMBOL", "celltype", "species", "prop_young", "prop_old", "n_cells_young", "n_cells_old")], by.x = c("ENSEMBL", "SYMBOL", "celltype", "species"), by.y = c("ENSEMBL","SYMBOL", "celltype", "species"), all.x = TRUE)
+DE_genes = DE_genes[celltype!="MF-Ifg"]
+DE_genes[is.na(prop_young)]
+
+ensembl = useMart("ensembl",dataset="hsapiens_gene_ensembl")
+listAttributes(ensembl)
+ensembl2entrez_map = as.data.table(getBM(attributes=c('ensembl_gene_id', 'entrezgene_id'), 
+      filters = 'ensembl_gene_id', 
+      values = unique(DE_genes$ENSEMBL), 
+      mart = ensembl))
+colnames(ensembl2entrez_map) = c('ENSEMBL', 'ENTREZ')
+sum(duplicated(ensembl2entrez_map$SYMBOL))
+sum(is.na(ensembl2entrez_map$ENTREZ))
+sum(duplicated((ensembl2entrez_map$ENTREZ)))
+
+DE_genes2entrez = merge(DE_genes, ensembl2entrez_map, by = 'ENSEMBL', all.x = T)
+#DE_genes2entrez = DE_genes2entrez[sign==TRUE,]
+DE_genes2entrez[, REGULATION:=case_when(
+  (log2fc>0 & ltsr > 0.9) ~ "UP",
+  (log2fc<0 & ltsr > 0.9) ~ "DW",
+  TRUE ~ 'none')]
+
+table(DE_genes2entrez[, c("species", "REGULATION")])
+DE_genes2entrez
+
+DE_genes2entrez$celltype = factor(DE_genes2entrez$celltype, levels = c("MuSC","MF_IIfg", "FB", "NGFR+FB", "Tenoc", "Mesothelial cell", "Schwann", "SGC", "T cell", "NK cell", "B cell" , "B plasma",  "Monocyte", "Macrophage",  "Neutrophil","CD1", "Cycling", "Mast cell", "ArtEC", "VenEC", "LymphEC", "Pericyte", "SMC"))
+levels(DE_genes2entrez$celltype) = c("MuSC","MF_IIfg", "FB","PnFB", "Tenocyte", "Mesothelial cell", "mSchwann", "nmSchwann","T cell", "NK cell", "B cell" , "B plasma",  "Monocyte", "Macrophage",  "Neutrophil","cDC2", "Cycling", "Mast cell", "ArtEC", "VenEC", "LymphEC", "Pericyte", "SMC")
+
+
+fwrite(DE_genes2entrez, "/mnt/muscle_ageing/results/DE_regression_results/Enrichment_results/ageingDEG_human2mouse.csv")
+```
+
+
+## 2. Plot absolute number of DE genes for mouse and human (Fig.6b)
+
+```{r}
+DE_genes2entrez = fread("/mnt/muscle_ageing/results/DE_regression_results/Enrichment_results/ageingDEG_human2mouse.csv")
+#DE_genes[, sign:=ifelse(pval_bh<= 0.05, TRUE, FALSE)]
+gene2ctype_tb = copy(DE_genes2entrez[DE_genes2entrez$sign==TRUE & DE_genes2entrez$flag5 == TRUE])
+gene2ctype_tb2 = copy(DE_genes2entrez[DE_genes2entrez$sign==TRUE])
+
+fwrite(gene2ctype_tb[,c("ENSEMBL", "ENTREZ", "SYMBOL", "celltype", "species", "ltsr", "beta_old", "beta_young", "log2fc","REGULATION" , "prop_young", "prop_old", "n_cells_young", "n_cells_old")], "/mnt/muscle_ageing/results/DE_regression_results/Enrichment_results/ageingDEG_human2mouse_sign.csv")
+
+ctypes_rm = names(which(table(unique(gene2ctype_tb[, c("species", "celltype")])$celltype)<2))
+gene2ctype_tb = gene2ctype_tb[!(celltype %in% c(ctypes_rm, "MF_IIfg")),]
+
+gene2ctype_tb = gene2ctype_tb[REGULATION %in% c("UP", "DW")]
+unique(gene2ctype_tb$celltype)
+
+gene2ctype_tb$celltype
+
+gene2ctype_tb[, celltype:= factor(celltype, levels = c("MuSC", "FB", "NGFR+FB", "Tenoc", "Schwann", "SGC", 
+                                                       "T cell", "NK cell", "B cell" , "Monocyte", "Macrophage", "Neutrophil",
+                                                       "CD1", "ArtEC", "VenEC", "LymphEC", "Pericyte", "SMC"))]
+
+levels(gene2ctype_tb$celltype) = c("MuSC", "FB", "PnFB", "Tenocyte", "mSchwann", "nmSchwann", 
+                                   "T cell", "NK cell", "B cell" , "Monocyte", "Macrophage",  "Neutrophil",
+                                   "cDC2", "ArtEC", "VenEC", "LymphEC",  "Pericyte", "SMC")
+#gene2ctype_tb = copy(gene2ctype_integrated)
+gene2ctype_tb[, gene_count:= .N, by = c("ENSEMBL", "SYMBOL", "species", "REGULATION")]
+length(unique(gene2ctype_tb))
+summary(unique(gene2ctype_tb[,c("ENSEMBL", "SYMBOL", "species", "REGULATION", "gene_count")])$gene_count)
+unique(gene2ctype_tb$gene_count)
+gene2ctype_tb[, unique:= case_when(
+  gene_count == 1 ~ "unique",
+  gene_count <= 3 ~ "shared by a few",
+  gene_count > 3 ~ "shared by multiple"
+  )]
+gene2ctype_tb[, unique:= factor(unique, levels = c("shared by multiple", "shared by a few", "unique"))]
+gene2ctype_tb[, count:=1]
+
+count_tb = gene2ctype_tb[, (sum(count)), by = c("celltype", "species", "REGULATION")]
+count_tb[, count:= ifelse(species == "human", V1, -V1)]
+count_tb[, reg_sp:= paste(REGULATION, species, sep = "-")]
+count_tb$reg_sp = factor(count_tb$reg_sp, levels = c("UP-human", "UP-mouse", "DW-human", "DW-mouse"))
+
+count_tb$V1 = NULL
+de_human2mouse_plt = ggplot(data = count_tb, aes(x = REGULATION, y = count, fill = reg_sp)) +  
+  geom_bar(stat="identity", color = "black") + 
+  facet_grid(celltype~.) + 
+  coord_flip()+ 
+  theme_pubr(base_size = 14, x.text.angle = 45, legend = "top") + 
+  theme(strip.text.y = element_text(angle = 0)) + 
+  labs(fill="") + 
+  scale_fill_manual(values = c("#FF9896", "#D62728","#AEC7E8", "#1F77B4")) #values = c("#F58549", "#F2A65A", "#006E90", "#9AD2CB")
+today = Sys.Date()
+ggsave(paste0("/mnt/muscle_ageing/figures/skm_human2mouse_ageDEGs_", today, ".pdf"), width = 6, height = 6, de_human2mouse_plt, dpi = 300)
+
+fwrite(count_tb, "/mnt/muscle_ageing/results/Source_files/Fig6b_source.csv")
+```
+
+##3. Quantify overlap in DE genes between mouse and human (Fig.6c)
+```{r}
+
+DE_genes2entrez$REGULATION = factor(DE_genes2entrez$REGULATION, levels = c("DW", "UP", "none"))
+human2mouse_DE = merge(DE_genes2entrez[species == "human"], DE_genes2entrez[species == "mouse"], by = c("ENSEMBL", "SYMBOL", "ENTREZ", "celltype", "cell_type_common"), suffixes = c("_human", "_mouse"))
+
+
+## Calculate intersection between human vs mouse upregulated ageing DE genes for each cell type according to Jaccard similarity index 
+intersect_matrix_up = matrix(0L, nrow = length(unique(human2mouse_DE$cell_type_common)), ncol = length(unique(human2mouse_DE$cell_type_common)))
+
+rownames(intersect_matrix_up) = unique(human2mouse_DE$cell_type_common)
+colnames(intersect_matrix_up) = unique(human2mouse_DE$cell_type_common)
+for (i in rownames(intersect_matrix_up)){
+  for (j in colnames(intersect_matrix_up)){
+    ctype_df = human2mouse_DE[(prop_young_human > 0.05 | prop_old_human > 0.05) & (prop_young_mouse > 0.05 | prop_old_mouse > 0.05)]
+    intersect_matrix_up[i,j] = length(intersect(unique(na.omit(ctype_df[cell_type_common == i & REGULATION_human == 'UP', SYMBOL])), unique(ctype_df[cell_type_common == j & REGULATION_mouse == 'UP',SYMBOL])))/length(union(unique(na.omit(ctype_df[cell_type_common == i & REGULATION_human == 'UP', SYMBOL])), unique(ctype_df[cell_type_common == j & REGULATION_mouse == 'UP',SYMBOL])))
+  }
+  }
+
+## Calculate actual number of common DE genes between human and mouse 
+intersect_matrix_up_genes = matrix(0L, nrow = length(unique(human2mouse_DE$cell_type_common)), ncol = length(unique(human2mouse_DE$cell_type_common)))
+
+rownames(intersect_matrix_up_genes) = unique(human2mouse_DE$cell_type_common)
+colnames(intersect_matrix_up_genes) = unique(human2mouse_DE$cell_type_common)
+for (i in rownames(intersect_matrix_up_genes)){
+  for (j in colnames(intersect_matrix_up_genes)){
+    ctype_df = human2mouse_DE[(prop_young_human > 0.05 | prop_old_human > 0.05) & (prop_young_mouse > 0.05 | prop_old_mouse > 0.05)]
+    intersect_matrix_up_genes[i,j] = length(intersect(unique(na.omit(ctype_df[cell_type_common == i & REGULATION_human == 'UP', SYMBOL])), unique(human2mouse_DE[cell_type_common == j & REGULATION_mouse == 'UP', SYMBOL])))
+  }}
+
+## Re-order heatmaps from highest to lowest overlap
+ordered_ctypes_up = names(sort(diag(intersect_matrix_up), decreasing = T))
+intersect_matrix_up_ordered = intersect_matrix_up[ordered_ctypes_up, ordered_ctypes_up]
+intersect_matrix_up_genes_ordered = intersect_matrix_up_genes[ordered_ctypes_up, ordered_ctypes_up]
+
+library(pheatmap)
+library(RColorBrewer)
+## Set the common color scale
+breaksList = seq(0, 0.23, by = 0.00001)
+
+#intersect_matrix_up_ordered[intersect_matrix_up_ordered == 0] = NA
+heatmap_up_noleg = pheatmap(mat = intersect_matrix_up_ordered, 
+         cluster_rows = F,
+         cluster_cols = F,
+         display_numbers = F,
+         number_format = "%.1f",
+         scale = "none",
+         na_col = "#DDDDDD", 
+         border_color = NA, 
+         color = colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(length(breaksList)), 
+         breaks = breaksList, legend = FALSE)
+ggsave(paste0("/mnt/muscle_ageing/figures/skm_human2mouse_de_up_genes_noleg", today, ".pdf"), width = 4, height = 4, heatmap_up_noleg, dpi = 300)
+write.csv(intersect_matrix_up_ordered, file = "/mnt/muscle_ageing/results/Source_files/Fig6c_upgenes_source.csv", row.names = T)
+
+## Calculate intersection between human vs mouse downregulated ageing DE genes for each cell type according to Jaccard similarity index 
+intersect_matrix_dw = matrix(0L, nrow = length(unique(human2mouse_DE$cell_type_common)), ncol = length(unique(human2mouse_DE$cell_type_common)))
+
+rownames(intersect_matrix_dw) = unique(human2mouse_DE$cell_type_common)
+colnames(intersect_matrix_dw) = unique(human2mouse_DE$cell_type_common)
+for (i in rownames(intersect_matrix_dw)){
+  for (j in colnames(intersect_matrix_dw)){
+    ctype_df = ctype_df = human2mouse_DE[(prop_young_human > 0.05 | prop_old_human > 0.05) & (prop_young_mouse > 0.05 | prop_old_mouse > 0.05)]
+    intersect_matrix_dw[i,j] = length(intersect(unique(na.omit(ctype_df[cell_type_common == i & REGULATION_human == 'DW', SYMBOL])), unique(ctype_df[cell_type_common == j & REGULATION_mouse == 'DW',SYMBOL])))/length(union(unique(na.omit(ctype_df[cell_type_common == i & REGULATION_human == 'DW', SYMBOL])), unique(ctype_df[cell_type_common == j & REGULATION_mouse == 'DW',SYMBOL])))
+  }
+  }
+## Calculate number of downregulated ageing DE genes which are shared between mouse and human for each cell type
+intersect_matrix_dw_genes = matrix(0L, nrow = length(unique(human2mouse_DE$cell_type_common)), ncol = length(unique(human2mouse_DE$cell_type_common)))
+
+rownames(intersect_matrix_dw_genes) = unique(human2mouse_DE$cell_type_common)
+colnames(intersect_matrix_dw_genes) = unique(human2mouse_DE$cell_type_common)
+for (i in rownames(intersect_matrix_dw_genes)){
+  for (j in colnames(intersect_matrix_dw_genes)){
+    ctype_df = human2mouse_DE[(prop_young_human > 0.05 | prop_old_human > 0.05) & (prop_young_mouse > 0.05 | prop_old_mouse > 0.05)]
+    intersect_matrix_dw_genes[i,j] = length(intersect(unique(na.omit(ctype_df[cell_type_common == i & REGULATION_human == 'DW', SYMBOL])), unique(human2mouse_DE[cell_type_common == j & REGULATION_mouse == 'DW', SYMBOL])))
+  }}
+
+ordered_ctypes_dw = names(sort(diag(intersect_matrix_dw), decreasing = T))
+intersect_matrix_dw_ordered = intersect_matrix_dw[ordered_ctypes_dw, ordered_ctypes_dw]
+intersect_matrix_dw_genes_ordered = intersect_matrix_dw_genes[ordered_ctypes_dw, ordered_ctypes_dw]
+heatmap_dw_noleg = pheatmap(mat = intersect_matrix_dw_ordered, 
+         cluster_rows = F,
+         cluster_cols = F,
+         display_numbers = F,
+         number_format = "%.1f",
+         scale = "none",
+         na_col = "#DDDDDD", 
+         border_color = NA, 
+         color = colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(length(breaksList)), 
+         breaks = breaksList, legend = FALSE)
+
+write.csv(intersect_matrix_dw_ordered, file = "/mnt/muscle_ageing/results/Source_files/Fig6c_downgenes_source.csv", row.names = T)
+ggsave(paste0("/mnt/muscle_ageing/figures/skm_human2mouse_de_dw_genes_noleg", today, ".pdf"), width = 4, height = 4, heatmap_dw_noleg, dpi = 300)
+
+```
+
+## 4. Over-representation analysis KEGG (Figure 6d)
+```{r}
+## Remove stress genes before performing over-representation analysis
+stress_genes = c("Fosb", "Fos", "Jun", "Junb", "Jund", "Atf3", "Egr1", "Hspa1a", "Hspa1b", "Hsp90ab1", "Hspa8", "Hspb1", "Ier3", "Ier2", "Btg1", "Btg2", "Dusp1")
+stress_genes_hs = toupper(stress_genes)
+
+DE_genes2entrez_nostress = DE_genes2entrez[!(DE_genes2entrez$SYMBOL %in% stress_genes_hs)]
+unique(DE_genes2entrez[(DE_genes2entrez$SYMBOL %in% stress_genes_hs)]$SYMBOL)
+
+# Perform KEGG enrichment analysis for up-regulated DE genes in both species with an exception of stress genes
+or_kegg_results_up_nostress = data.table()
+for (sp in unique(DE_genes2entrez_nostress$species)){
+  for (i in unique(DE_genes2entrez_nostress$celltype)){
+    de_genes_tb = DE_genes2entrez_nostress[celltype == i & species == sp & (prop_young >= 0.05 | prop_old >= 0.05) & REGULATION == "UP", c("ENTREZ", "SYMBOL", "log2fc")][order(log2fc, decreasing = T)]
+    de_genes_tb = de_genes_tb[!is.na(ENTREZ)][!duplicated(ENTREZ)]
+    universe_genes = as.character(unique(DE_genes2entrez_nostress[(celltype == i) & (prop_young >= 0.05 | prop_old >= 0.05) & (!is.na(ENTREZ))]$ENTREZ))
+    gene_list = de_genes_tb$ENTREZ
+    if (length(gene_list)>5){
+      de_or = enrichKEGG(gene     = gene_list,
+                        organism = "hsa",
+                        keyType = "kegg",
+                        universe = universe_genes,
+                        minGSSize    = 10,
+                        maxGSSize    = 500,
+                        pvalueCutoff = 0.1)
+      
+      ctype_result = cbind(data.table(celltype = rep(i, nrow(summary(de_or)))), summary(de_or))
+      if (nrow(ctype_result)>0){
+        ctype_result$species = sp
+        or_kegg_results_up_nostress = rbind(or_kegg_results_up_nostress, ctype_result)
+      }
+    } 
+  }
+}
+
+human2mouse_kegg_up_nostress = merge(or_kegg_results_up_nostress[species=="human"], or_kegg_results_up_nostress[species=="mouse"], by = c("celltype", "ID", "Description"), suffixes = c("_human", "_mouse"))
+library(dplyr)
+human2mouse_kegg_up_nostress[, ctype_group:=case_when(
+    celltype %in% c("B cell", "CD1", "Macrophage", "Monocyte", "NK cell", "Neutrophil", "T cell") ~ "immune",
+    celltype %in% c("ArtEC", "VenEC" ) ~ "endo", 
+    celltype %in% c("FB", "Tenoc") ~ "FB", 
+    celltype == "MF_IIfg" ~ "Myofiber", 
+    TRUE ~ celltype
+)]
+
+# Perform KEGG enrichment analysis for dwon-regulated ageing DE genes in both species with an exception of stress genes
+or_kegg_results_dw_nostress = data.table()
+for (sp in unique(DE_genes2entrez_nostress$species)){
+  for (i in unique(DE_genes2entrez_nostress$celltype)){
+    de_genes_tb = DE_genes2entrez_nostress[celltype == i & species == sp & (prop_young >= 0.05 | prop_old >= 0.05) & REGULATION == "DW", c("ENTREZ", "SYMBOL", "log2fc")][order(log2fc, decreasing = T)]
+    de_genes_tb = de_genes_tb[!is.na(ENTREZ)][!duplicated(ENTREZ)]
+    universe_genes = as.character(unique(DE_genes2entrez_nostress[(celltype == i) & (prop_young >= 0.05 | prop_old >= 0.05) & (!is.na(ENTREZ))]$ENTREZ))
+    gene_list = de_genes_tb$ENTREZ
+    if (length(gene_list)>5){
+      de_or = enrichKEGG(gene     = gene_list,
+                        organism = "hsa",
+                        keyType = "kegg",
+                        universe = universe_genes,
+                        minGSSize    = 10,
+                        maxGSSize    = 500,
+                        pvalueCutoff = 0.1)
+      
+      ctype_result = cbind(data.table(celltype = rep(i, nrow(summary(de_or)))), summary(de_or))
+      if (nrow(ctype_result)>0){
+        ctype_result$species = sp
+        or_kegg_results_dw_nostress = rbind(or_kegg_results_dw_nostress, ctype_result)
+      }
+    } 
+  }
+}
+
+or_kegg_results_dw_nostress
+human2mouse_kegg_dw_nostress = merge(or_kegg_results_dw_nostress[species=="human"], or_kegg_results_dw_nostress[species=="mouse"], by = c("celltype", "ID", "Description"), suffixes = c("_human", "_mouse"))
+human2mouse_kegg_dw_nostress[, ctype_group:=case_when(
+    celltype %in% c("B cell", "CD1", "Macrophage", "Monocyte", "NK cell", "Neutrophil", "T cell") ~ "immune",
+    celltype %in% c("ArtEC", "VenEC") ~ "endo", 
+    celltype %in% c("Pericyte", "SMC") ~ "smc", 
+    celltype %in% c("FB", "Tenoc", "NGFR+FB") ~ "FB", 
+    celltype == "MF_IIfg" ~ "Myofiber", 
+    TRUE ~ celltype
+)]
+
+## Merge pathways enriched in up and down-regulated ageing DE genes
+human2mouse_kegg_up_nostress[, regulation:= "UP"]
+human2mouse_kegg_dw_nostress[, regulation:= "DW"]
+human2mouse_kegg_dif = rbind(human2mouse_kegg_up_nostress, human2mouse_kegg_dw_nostress)
+
+## Calculate frequency of their occurence
+path_count = data.table(table(human2mouse_kegg_dif[, c("Description", "regulation")]))
+path_count[, N_int:= ifelse(regulation=="UP", N, -N)]
+path_count[, int_dif:= sum(N_int), by = Description]
+
+kegg_path_enrich = ggplot(path_count, aes(x = reorder(Description, int_dif), y = N_int, fill = regulation)) + geom_col() + geom_hline(yintercept = 0) + theme_pubr(base_size = 8, x.text.angle = 60) + labs(x = "KEGG pathways", y = "No of celltypes demonstrating enrichment")
+
+ggsave("/mnt/muscle_ageing/results/DE_regression_results/Enrichment_results/Human2mouse_KEGG_paths_common.pdf", kegg_path_enrich, width = 14, height = 6)
+
+fwrite(human2mouse_kegg_dif, file = "/mnt/muscle_ageing/results/DE_regression_results/Enrichment_results/Human2mouse_KEGG_paths_common.csv")
+fwrite(path_count, file = "/mnt/muscle_ageing/results/DE_regression_results/Enrichment_results/Human2mouse_KEGG_paths_common_count.csv")
+path_count = fread("/mnt/muscle_ageing/results/DE_regression_results/Enrichment_results/Human2mouse_KEGG_paths_common_count.csv")
+path_count_dw = path_count[regulation == "DW" & N!=0][order(N, decreasing = T)]
+path_count_dw$no_ord = 1:nrow(path_count_dw)
+path_count_up = path_count[regulation == "UP"][order(N, decreasing = T)][1:nrow(path_count_dw)]
+path_count_up$no_ord = 1:nrow(path_count_up)
+
+
+## PLot two parts of 6d plot as up and down plots 
+str(path_count_up)
+path_count_up[, c("N", "int_dif"):= NULL]
+fwrite(path_count_up, "/mnt/muscle_ageing/results/Source_files/Fig6d_uppathways_source.csv")
+up_plot1 = ggplot(path_count_up, aes(x = no_ord, y = N_int)) + geom_point(size = 4, color = "grey") + theme_pubr() + scale_x_continuous(breaks=seq(0,70,10), limits = c(0,70)) + scale_y_continuous(breaks=seq(0,6,2), limits = c(0, 6)) 
+up_plot1 <- up_plot1 +
+  theme(
+    panel.background = element_rect(fill = "transparent"), # bg of the panel
+    plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
+    panel.grid.major = element_blank(), # get rid of major grid
+    panel.grid.minor = element_blank(), # get rid of minor grid
+    legend.background = element_rect(fill = "transparent"), # get rid of legend bg
+    legend.box.background = element_rect(fill = "transparent") # get rid of legend panel bg
+  )
+
+path_count_dw[, c("N", "int_dif"):= NULL]
+fwrite(path_count_dw, "/mnt/muscle_ageing/results/Source_files/Fig6d_downpathways_source.csv")
+dw_plot2 = ggplot(path_count_dw, aes(x = no_ord, y = N_int)) + geom_point(size = 4, color = "grey") + theme_pubr() + scale_x_continuous(breaks=seq(0,70,10)) + scale_y_continuous(breaks=seq(0,-6,-2), limits = c(-6, 0)) + theme(axis.title.x = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.line.x = element_blank())
+
+dw_plot2 <- dw_plot2 +
+  theme(
+    panel.background = element_rect(fill = "transparent"), # bg of the panel
+    plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
+    panel.grid.major = element_blank(), # get rid of major grid
+    panel.grid.minor = element_blank(), # get rid of minor grid
+    legend.background = element_rect(fill = "transparent"), # get rid of legend bg
+    legend.box.background = element_rect(fill = "transparent") # get rid of legend panel bg
+  )
+
+ggsave("/mnt/muscle_ageing/figures/SKM_huamn2mouse_kegg_path_up.pdf", up_plot1, height = 2.5, width = 4, useDingbats=FALSE, bg = "transparent")
+ggsave("/mnt/muscle_ageing/figures/SKM_huamn2mouse_kegg_path_dw.pdf", dw_plot2, height = 2.5, width = 4, useDingbats=FALSE, bg = "transparent")
+
+
+
+```
+
+
+## 5. Plot ageing chnage for the set of inflammation-related genes for human and mouse (Figure 6e)
+```{r}
+ctypes_rm = names(which(table(unique(gene2ctype_tb[, c("species", "celltype")])$celltype)<2))
+gene_list_filt = c('CCL2', 'CCL17','CXCL3','IL1B', 'NLRP3', 'IL6','IGF1')
+
+paired_ctypes = c("MuSC", "FB", "PnFB", "Tenocyte", "mSchwann", "nmSchwann", 
+                                   "T cell", "NK cell", "B cell" , "Monocyte", "Macrophage",  "Neutrophil",
+                                   "cDC2", "ArtEC", "VenEC", "LymphEC",  "Pericyte", "SMC")
+ctypes2sp_ord_list = as.character()
+for (i in paired_ctypes){
+    ctypes2sp_ord_list = c(ctypes2sp_ord_list, paste0(i, '-human'), paste0(i, '-mouse'))
+}
+
+gene_subset = DE_genes2entrez[(SYMBOL %in% gene_list_filt) & (celltype %in% paired_ctypes)]
+gene_subset [, ctype2species:=paste0(celltype,"-", species), by = c("celltype", "species")]
+gene_subset$ctype2species = factor(gene_subset$ctype2species, levels = rev(ctypes2sp_ord_list))
+gene_subset$SYMBOL = factor(gene_subset$SYMBOL, levels = gene_list_filt)
+gene_subset[is.na(gene_subset$ctype2species)]
+gene_subset$REGULATION = factor(gene_subset$REGULATION, levels = c("none", "UP", "DW"))
+
+str(gene_subset)
+fwrite(gene_subset[, c("ENSEMBL", "SYMBOL", "ctype2species", "REGULATION", "prop_old", "prop_young")], "/mnt/muscle_ageing/results/Source_files/Fig6e_source.csv")
+de_selected_genes = ggplot(gene_subset, aes(x= SYMBOL, y=ctype2species, size=prop_old, fill=log2fc, color = REGULATION, group = ctype2species)) + 
+  geom_point(pch=21) +
+  theme_linedraw(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 60, hjust=1)) + 
+ # scale_fill_gradientn(colors = rev(brewer.pal(11, "RdBu"))) + 
+  scale_fill_gradient2(midpoint = 0, low = "royalblue", mid = "white",
+                            high = "red", space = "Lab" ) + 
+  scale_color_manual(values = c("gray70", "red", "blue")) + 
+  scale_radius(limits = range(0.01, 1)) 
+
+ggsave(filename = "/mnt/muscle_ageing/figures/DE_selected_genes_human_vs_mouse_v2.pdf", plot = de_selected_genes, width = 5.5, height = 6.5, useDingbats = FALSE)
+#S1<- ggplot(gene_subset, aes(x= SYMBOL, y=ctype2species, size=ltsr, colour=log2fc, group = ctype2species)) + geom_point(alpha = 0.8) + theme_pubr() +scale_colour_gradientn(colors = rev(brewer.pal(9, "RdBu"))) +scale_size(breaks = c(0, 0.5, 0.9, 0.95, 0.99)) + 
+
+  
+  
+```
+
+
+
