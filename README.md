@@ -2,7 +2,7 @@
 code to reproduce analyses in the manuscript 
 
 ## Raw data 
-Raw data files can be obtained from the ArrayExpress under accesion [E-MTAB-13874](https://www.ebi.ac.uk/biostudies/arrayexpress/studies/E-MTAB-13874) and processed anndata objects are available from [muscleageingcellatlas.org](www.muscleageingcellatlas.org).
+Raw data files can be obtained from the ArrayExpress under accesion [E-MTAB-13874](https://www.ebi.ac.uk/biostudies/arrayexpress/studies/E-MTAB-13874) and processed anndata objects are available from [muscleageingcellatlas.org](https://www.muscleageingcellatlas.org/).
 
 
 ## Contents
