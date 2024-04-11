@@ -1,6 +1,10 @@
 # Human skeletal muscle aging atlas
 code to reproduce analyses in the manuscript 
 
+## Raw data 
+Raw data files can be obtained from the ArrayExpress under accesion [E-MTAB-13874](https://www.ebi.ac.uk/biostudies/arrayexpress/studies/E-MTAB-13874) and processed anndata objects are available from [muscleageingcellatlas.org](www.muscleageingcellatlas.org).
+
+
 ## Contents
 ### 1. Annotation
 - jupyter notebooks for QC, integration and annotation of coarse and fine-grained cell types in the skeltal muscle.
@@ -10,9 +14,6 @@ code to reproduce analyses in the manuscript
 
 ### 3. Figures
 - jupyter notebooks to run analyses to reproduce main and extended data figures.  
-
-## Raw data 
-Raw data files can be obtained from the ArrayExpress under accesion [E-MTAB-13874](https://www.ebi.ac.uk/biostudies/arrayexpress/studies/E-MTAB-13874) and processed anndata objects are available from [muscleageingcellatlas.org](muscleageingcellatlas.org).
 
 ## Citation 
 TBA
